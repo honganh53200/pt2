@@ -1,83 +1,95 @@
- name: Decompile classes
+name: Decompile classes
 
-on: workflow_dispatch: inputs: classes: description: 'Comma-separated class filenames to decompile (default: MainCanvas.class,UIForm.class). Use "all" or leave empty to decompile all .class files.' required: false default: 'MainCanvas.class,UIForm.class'
+on:
+  workflow_dispatch:
+    inputs:
+      classes:
+        description: 'Comma-separated class filenames to decompile (default: MainCanvas.class,UIForm.class). Use "all" or leave empty to decompile all .class files.'
+        required: false
+        default: 'MainCanvas.class,UIForm.class'
 
-jobs: decompile: runs-on: ubuntu-latest permissions: {} steps: - name: Checkout repository uses: actions/checkout@v4
-Code:
-  - name: Set up JDK 11
-    uses: actions/setup-java@v4
-    with:
-      distribution: temurin
-      java-version: '11'
+jobs:
+  decompile:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Create classes.jar (selected classes or all)
-    shell: bash
-    run: |
-      set -eux
-      INPUTS="${{ github.event.inputs.classes }}"
-      if [ -z "$INPUTS" ] || [ "$INPUTS" = "all" ]; then
-        find . -type f -name '*.class' > classlist.txt
-      else
-        IFS=',' read -ra NAMES <<< "$INPUTS"
-        > classlist.txt
-        for n in "${NAMES[@]}"; do
-          nn=$(echo "$n" | sed 's/^\s\+//;s/\s\+$//')
-          find . -type f -name "$nn" -print >> classlist.txt || true
-        done
-      fi
-      if [ ! -s classlist.txt ]; then
-        echo "No .class files found for the given input: $INPUTS"
-        exit 1
-      fi
-      jar cf classes.jar @classlist.txt
-      ls -lh classes.jar
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
 
-  - name: Download CFR decompiler
-    shell: bash
-    run: |
-      set -eux
-      CFR_URL="https://www.benf.org/other/cfr/cfr-0.152.jar"
-      curl -sSL -o cfr.jar "$CFR_URL"
-      java -jar cfr.jar --help || true
+      - name: Create classes.jar (selected classes or all)
+        shell: bash
+        run: |
+          set -eux
+          INPUTS="${{ github.event.inputs.classes }}"
+          if [ -z "$INPUTS" ] || [ "$INPUTS" = "all" ]; then
+            find . -type f -name '*.class' > classlist.txt
+          else
+            IFS=',' read -ra NAMES <<< "$INPUTS"
+            > classlist.txt
+            for n in "${NAMES[@]}"; do
+              nn=$(echo "$n" | sed 's/^\s\+//;s/\s\+$//')
+              find . -type f -name "$nn" -print >> classlist.txt || true
+            done
+          fi
+          if [ ! -s classlist.txt ]; then
+            echo "No .class files found for the given input: $INPUTS"
+            exit 1
+          fi
+          jar cf classes.jar @classlist.txt
+          ls -lh classes.jar
 
-  - name: Decompile with CFR
-    shell: bash
-    run: |
-      set -eux
-      mkdir -p decompiled/cfr
-      java -jar cfr.jar classes.jar --outputdir decompiled/cfr || true
+      - name: Download CFR decompiler
+        shell: bash
+        run: |
+          set -eux
+          CFR_URL="https://www.benf.org/other/cfr/cfr-0.152.jar"
+          curl -sSL -o cfr.jar "$CFR_URL"
+          java -jar cfr.jar --help || true
 
-  - name: Download jadx
-    shell: bash
-    run: |
-      set -eux
-      JADZ_URL="https://github.com/skylot/jadx/releases/download/v1.4.6/jadx-1.4.6.zip"
-      wget -q -O jadx.zip "$JADZ_URL" || true
-      unzip -q jadx.zip -d jadx || true
-      chmod +x jadx/bin/jadx || true
+      - name: Decompile with CFR
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p decompiled/cfr
+          java -jar cfr.jar classes.jar --outputdir decompiled/cfr || true
 
-  - name: Decompile with jadx
-    shell: bash
-    run: |
-      set -eux
-      mkdir -p decompiled/jadx
-      if [ -x jadx/bin/jadx ]; then
-        ./jadx/bin/jadx -d decompiled/jadx classes.jar || true
-      else
-        echo "jadx binary not found; skipped jadx step"
-      fi
+      - name: Download jadx
+        shell: bash
+        run: |
+          set -eux
+          JADZ_URL="https://github.com/skylot/jadx/releases/download/v1.4.6/jadx-1.4.6.zip"
+          wget -q -O jadx.zip "$JADZ_URL" || true
+          unzip -q jadx.zip -d jadx || true
+          chmod +x jadx/bin/jadx || true
 
-  - name: Package decompiled results
-    shell: bash
-    run: |
-      set -eux
-      ls -R decompiled || true
-      zip -r decompiled_results.zip decompiled || true
+      - name: Decompile with jadx
+        shell: bash
+        run: |
+          set -eux
+          mkdir -p decompiled/jadx
+          if [ -x jadx/bin/jadx ]; then
+            ./jadx/bin/jadx -d decompiled/jadx classes.jar || true
+          else
+            echo "jadx binary not found; skipped jadx step"
+          fi
 
-  - name: Upload decompiled artifact
-    uses: actions/upload-artifact@v4
-    with:
-      name: decompiled-results
-      path: |
-        decompiled
-        decompiled_results.zip
+      - name: Package decompiled results
+        shell: bash
+        run: |
+          set -eux
+          ls -R decompiled || true
+          zip -r decompiled_results.zip decompiled || true
+
+      - name: Upload decompiled artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: decompiled-results
+          path: |
+            decompiled
+            decompiled_results.zip
