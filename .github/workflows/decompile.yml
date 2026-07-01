@@ -1,3 +1,9 @@
+ name: Decompile classes
+
+on: workflow_dispatch: inputs: classes: description: 'Comma-separated class filenames to decompile (default: MainCanvas.class,UIForm.class). Use "all" or leave empty to decompile all .class files.' required: false default: 'MainCanvas.class,UIForm.class'
+
+jobs: decompile: runs-on: ubuntu-latest permissions: {} steps: - name: Checkout repository uses: actions/checkout@v4
+Code:
   - name: Set up JDK 11
     uses: actions/setup-java@v4
     with:
